@@ -1,1 +1,0 @@
-"""Geo Tracker application package."""

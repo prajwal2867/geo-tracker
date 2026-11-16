@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location sharing</title>
+</head>
+<body>
+    <h1>Location sharing</h1>
+    <p>
+        If you continue, this device's location will be sent to the server
+        operator. Share it only if you trust them.
+    </p>
+    <button id="share-location" type="button">Share my location</button>
+    <p id="status" role="status" aria-live="polite"></p>
+
+    <script>
+        function shareLocation() {
+            if (!navigator.geolocation) {
+                document.getElementById('status').textContent =
+                    'Geolocation is not available in this browser.';
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const data = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy
+                    };
+
+                    fetch('/location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    })
+                        .then((response) => {
+                            if (!response.ok) {
+                                throw new Error('The server could not save the location.');
+                            }
+                            document.getElementById('status').textContent =
+                                'Location shared successfully.';
+                        })
+                        .catch((error) => {
+                            document.getElementById('status').textContent = error.message;
+                        });
+                },
+                (error) => {
+                    document.getElementById('status').textContent = error.message;
+                }
+            );
+        }
+
+        document.getElementById('share-location').addEventListener('click', shareLocation);
+    </script>
+</body>
+</html>
