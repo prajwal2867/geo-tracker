@@ -1,10 +1,15 @@
+# Local run: starts the Python server and temporary HTTPS tunnel.
 python server.py
-# Requires cloudflared on PATH; server.py starts the temporary HTTPS tunnel automatically.
 
+# Build the Docker image (includes cloudflared).
 docker build -t geo-server .
+
+# Run the server in a background container and map port 8000.
 docker run -d --name my-geo-server --restart unless-stopped -p 8000:8000 geo-server
+
+# View output and the temporary HTTPS URL; Ctrl+C only exits the log view.
 docker logs -f my-geo-server
+
+# Stop or restart the existing container.
 docker start my-geo-server
 docker stop my-geo-server
-docker run -d --name cloudflare-quick-tunnel --restart unless-stopped cloudflare/cloudflared:latest tunnel --no-autoupdate --url http://docker.internal
-docker logs cloudflare-quick-tunnel
