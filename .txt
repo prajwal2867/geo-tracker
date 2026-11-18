@@ -1,8 +1,19 @@
-# Create a container and map the port 8000 to container port 8000.
-docker create --name my-geo-server --restart unless-stopped -p 8000:8000 geo-server
+# Build the image.
+docker build -t geo-server .
 
-# Start the container in the background.
+# If an old container exists, remove it before recreating it.
+# docker rm -f my-geo-server
+
+# Create and run the server; its redirect destination is fixed in index.html.
+docker run -d --name my-geo-server --restart unless-stopped -p 5000:5000 geo-server
+
+# View the server and tunnel output.
+docker logs -f my-geo-server
+
+# Stop, start, or restart the container.
+docker stop my-geo-server
 docker start my-geo-server
+docker restart my-geo-server
 
-# Attach to the container's interactive output (use when it is stopped).
-docker start -ai my-geo-server
+# Remove the container.
+docker rm -f my-geo-server
