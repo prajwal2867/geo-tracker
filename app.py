@@ -46,7 +46,8 @@ def get_ip_location(ip_address):
 
         endpoint = (
             f"http://ip-api.com/json/{quote(ip_address, safe='')}"
-            "?fields=status,message,city,regionName,country,lat,lon"
+            "?fields=status,message,city,regionName,country,countryCode,"
+            "lat,lon,timezone,isp,as,mobile,proxy,hosting"
         )
 
         req = Request(
@@ -89,6 +90,13 @@ def get_ip_location(ip_address):
             "city": city,
             "region": region,
             "country": data.get("country", "Unknown"),
+            "country_code": data.get("countryCode"),
+            "timezone": data.get("timezone"),
+            "isp": data.get("isp", "Unknown"),
+            "asn": data.get("as", "Unknown"),
+            "mobile": data.get("mobile") is True,
+            "proxy": data.get("proxy") is True,
+            "hosting": data.get("hosting") is True,
             "accuracy": accuracy,
             "accuracy_level": accuracy_level,
             "map_link": (
@@ -104,6 +112,58 @@ def get_ip_location(ip_address):
         )
 
         return None
+
+
+def safe_text(value, max_length=128):
+
+    if not isinstance(value, str):
+        return "Unavailable"
+
+    cleaned = "".join(
+        character for character in value
+        if character.isprintable()
+    ).strip()
+
+    return cleaned[:max_length] or "Unavailable"
+
+
+def locale_comparison(language, browser_timezone, ip_location):
+
+    if not ip_location:
+        return "TIMEZONE: UNAVAILABLE; LANGUAGE REGION: UNAVAILABLE"
+
+    ip_timezone = ip_location.get("timezone")
+    if browser_timezone != "Unavailable" and isinstance(ip_timezone, str):
+        timezone_status = (
+            "MATCH"
+            if browser_timezone == ip_timezone
+            else "MISMATCH"
+        )
+    else:
+        timezone_status = "UNAVAILABLE"
+
+    normalized_language = language.replace("_", "-")
+    language_region = normalized_language.rsplit("-", 1)[-1].upper()
+    country_code = ip_location.get("country_code")
+    if (
+        "-" in normalized_language
+        and len(language_region) == 2
+        and language_region.isalpha()
+        and isinstance(country_code, str)
+        and len(country_code) == 2
+    ):
+        language_status = (
+            "MATCH"
+            if language_region == country_code.upper()
+            else "MISMATCH"
+        )
+    else:
+        language_status = "INDETERMINATE"
+
+    return (
+        f"TIMEZONE: {timezone_status}; "
+        f"LANGUAGE REGION: {language_status}"
+    )
 
 
 # ==================================================
@@ -363,6 +423,19 @@ class VisitorHandler(SimpleHTTPRequestHandler):
             ):
                 gps_status = "unavailable"
 
+            gps_error_code = coords.get("errorCode")
+            allowed_gps_errors = {
+                "PERMISSION_DENIED",
+                "POSITION_UNAVAILABLE",
+                "TIMEOUT",
+                "API_UNAVAILABLE"
+            }
+            if (
+                gps_status == "granted"
+                or gps_error_code not in allowed_gps_errors
+            ):
+                gps_error_code = "UNSPECIFIED"
+
             latitude = None
             longitude = None
             accuracy = None
@@ -401,10 +474,45 @@ class VisitorHandler(SimpleHTTPRequestHandler):
 
                     return
 
+                accuracy = round(accuracy, 4)
                 gps_link = (
                     f"https://www.google.com/maps?q="
                     f"{latitude},{longitude}"
                 )
+
+            browser_language = safe_text(coords.get("language"), 64)
+            browser_timezone = safe_text(coords.get("timeZone"), 64)
+            battery = coords.get("battery")
+            if not isinstance(battery, dict):
+                battery = {}
+
+            battery_status = (
+                "AVAILABLE"
+                if battery.get("status") == "available"
+                else "UNAVAILABLE"
+            )
+            battery_charging = battery.get("charging")
+            if not isinstance(battery_charging, bool):
+                battery_charging = None
+            battery_level = battery.get("level")
+            if (
+                not isinstance(battery_level, (int, float))
+                or isinstance(battery_level, bool)
+                or not math.isfinite(battery_level)
+                or not 0 <= battery_level <= 1
+            ):
+                battery_level = None
+
+            battery_charging_output = (
+                "YES" if battery_charging is True
+                else "NO" if battery_charging is False
+                else "Unavailable"
+            )
+            battery_level_output = (
+                f"{battery_level * 100:.2f}%"
+                if battery_level is not None
+                else "Unavailable"
+            )
 
             # IP-based location
             ip_link = (
@@ -430,6 +538,43 @@ class VisitorHandler(SimpleHTTPRequestHandler):
                 f"({ip_location['accuracy_level'].lower()})"
                 if ip_location else "Unavailable"
             )
+            isp = (
+                safe_text(ip_location.get("isp"))
+                if ip_location else "Unavailable"
+            )
+            asn = (
+                safe_text(ip_location.get("asn"))
+                if ip_location else "Unavailable"
+            )
+            vpn_status = (
+                ip_location["proxy"]
+                if ip_location else "Unavailable"
+            )
+            if ip_location:
+                network_flags = []
+                if ip_location["proxy"]:
+                    network_flags.append("PROXY/VPN")
+                if ip_location["hosting"]:
+                    network_flags.append("DATA CENTER/HOSTING")
+                if ip_location["mobile"]:
+                    network_flags.append("MOBILE CARRIER")
+                network_class = (
+                    ", ".join(network_flags)
+                    if network_flags
+                    else "RESIDENTIAL/OTHER (no flags reported)"
+                )
+            else:
+                network_class = "Unavailable"
+            locale_match = locale_comparison(
+                browser_language,
+                browser_timezone,
+                ip_location
+            )
+            gps_status_output = (
+                f"{gps_status.upper()} ({gps_error_code})"
+                if gps_status != "granted"
+                else "GRANTED"
+            )
 
             # ==================================================
             # UNIFIED TERMINAL OUTPUT
@@ -440,21 +585,32 @@ class VisitorHandler(SimpleHTTPRequestHandler):
 VISITOR DETECTED [{timestamp}]
 
 [1] IP-BASED LOCATION (ROUGH GEOGRAPHIC ESTIMATE)
-> IP ADDRESS       : {ip_address}
-> LATITUDE         : {ip_location['latitude'] if ip_location else "Unavailable"}
-> LONGITUDE        : {ip_location['longitude'] if ip_location else "Unavailable"}
-> ACCURACY         : {ip_accuracy}
-> LOCATION         : {location_name}
-> GOOGLE MAPS      : {ip_link or "Unavailable"}
+> IP ADDRESS                : {ip_address}
+> LATITUDE                  : {ip_location['latitude'] if ip_location else "Unavailable"}
+> LONGITUDE                 : {ip_location['longitude'] if ip_location else "Unavailable"}
+> ACCURACY                  : {ip_accuracy}
+> LOCATION                  : {location_name}
+> SERVICE PROVIDER          : {isp}
+> AUTONOMOUS SYSTEM NUMBER  : {asn}
+> NETWORK TYPE              : {network_class}
+> VPN STATUS (IP FLAG)      : {vpn_status}
+> GOOGLE MAPS               : {ip_link or "Unavailable"}
 
 [2] BROWSER GPS LOCATION (HIGHER PRECISION ESTIMATE)
-> GPS STATUS       : {gps_status.upper()}
-> LATITUDE         : {latitude if latitude is not None else "Unavailable"}
-> LONGITUDE        : {longitude if longitude is not None else "Unavailable"}
-> ACCURACY         : {f"~ {accuracy} meter(s) radius" if accuracy is not None else "Unavailable"}
-> GOOGLE MAPS      : {gps_link or "Unavailable"}
+> GPS STATUS                : {gps_status_output}
+> LATITUDE                  : {latitude if latitude is not None else "Unavailable"}
+> LONGITUDE                 : {longitude if longitude is not None else "Unavailable"}
+> ACCURACY                  : {f"~ {accuracy:.4f} meter(s) radius" if accuracy is not None else "Unavailable"}
+> GOOGLE MAPS               : {gps_link or "Unavailable"}
 
-> STATUS           : COMPLETED
+> BROWSER LANGUAGE          : {browser_language}
+> BROWSER TIME ZONE         : {browser_timezone}
+> IP COMPARISON             : {locale_match} (indicative only)
+> BATTERY STATUS            : {battery_status}
+> BATTERY CHARGING          : {battery_charging_output}
+> BATTERY LEVEL             : {battery_level_output}
+
+> STATUS                    : COMPLETED
 > SESSION ENDED
 
 ------"""
