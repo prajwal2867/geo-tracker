@@ -1,14 +1,14 @@
 # Geolocation Tracker
 
-A small Python web server that serves a page for sharing a device's location. When the visitor clicks **Share my location** and grants the browser's location permission, the page sends the coordinates to the server. The server prints the coordinates, reported accuracy, and a Google Maps link in its console. It does not save locations to a database.
+A Python web server that serves `index.html`, records visitor IP-based location estimates, and requests browser GPS location. Browser GPS is sent only if the visitor grants the browser's location permission. The server prints visitor details to its console and appends them to `logs.txt`; it does not use a database.
 
-When the server starts, it also launches a temporary Cloudflare Quick Tunnel. The HTTPS URL appears in the server output and can be opened from another device. The URL is temporary and changes when the tunnel is restarted.
+At startup, the server asks for the destination URL to redirect visitors to after tracking. It also starts a temporary Cloudflare Quick Tunnel. The HTTPS URL appears in the server output and can be opened from another device. The tunnel URL changes when the server restarts.
 
 ## Requirements
 
 - Python 3.12 or newer for running directly on your computer. The Docker image uses Python 3.12.
 - `cloudflared` installed and available on your `PATH` for direct Python startup.
-- A modern browser with location services enabled. Browsers require a secure context (HTTPS, or localhost) for geolocation.
+- A modern browser. Browsers require a secure context (HTTPS, or localhost) for geolocation.
 - Docker Desktop or Docker Engine for the optional container setup.
 
 The Python server uses only the standard library; no `pip install` step is needed.
@@ -22,44 +22,39 @@ python --version
 cloudflared --version
 ```
 
-Start the server and tunnel:
+Start the server and tunnel. Enter the destination URL when prompted:
 
 ```powershell
-python server.py
+python app.py
 ```
 
-Open the `https://...trycloudflare.com` URL printed by `cloudflared`. The local page is also available at `http://localhost:8000`. Click **Share my location** and approve the browser's location prompt to send it. Press **Ctrl+C** in the server terminal to stop both the server and its tunnel.
+The local server listens on `http://localhost:5000`. Open the `https://...trycloudflare.com` URL printed by `cloudflared` to reach it from another device. Press **Ctrl+C** in the server terminal to stop the server and its tunnel.
 
 ## Run with Docker
 
-The Docker image includes `cloudflared`, so the server starts its own tunnel inside the container.
+The Docker image includes `cloudflared`, so the server starts its own tunnel inside the container. Run it attached to a terminal so you can enter the destination URL at each start.
 
-Build the image:
+Build the image from the project directory:
 
 ```powershell
 docker build -t geo-server .
 ```
 
-Start the container in the background:
+Start the container interactively and mount the project `logs.txt` into it. This keeps the log on the host even if you remove the container:
 
 ```powershell
-docker run -d --name my-geo-server --restart unless-stopped -p 8000:8000 geo-server
+docker run -it --name my-geo-server -p 5000:5000 --mount "type=bind,source=$((Get-Location).Path)\logs.txt,target=/app/logs.txt" geo-server
 ```
 
-Show the server and tunnel output (including the HTTPS URL):
+Enter the destination URL when prompted. The server and tunnel output, including the temporary HTTPS URL, appears in this terminal. Press **Ctrl+C** to stop the container.
+
+To start the same container again and answer the prompt, use:
 
 ```powershell
-docker logs -f my-geo-server
+docker start -ai my-geo-server
 ```
 
-Press **Ctrl+C** to stop following the logs; this does not stop the container. Use these commands to stop or restart it:
-
-```powershell
-docker stop my-geo-server
-docker start my-geo-server
-```
-
-Each container start creates a new temporary tunnel URL. To remove the container after stopping it:
+`logs.txt` is written in the project directory through the bind mount and remains after stopping or removing the container. The tunnel URL is temporary and changes each time the app starts. To remove the container:
 
 ```powershell
 docker rm my-geo-server
@@ -67,4 +62,4 @@ docker rm my-geo-server
 
 ## Location and privacy
 
-Location is sent only after the visitor clicks the button and grants browser permission. The server prints the coordinates to its logs; anyone who can read those logs can see them. The temporary tunnel makes the server reachable from the public internet, so share its URL only with people you trust. This project has no authentication or persistent storage.
+The app records visitor IP addresses and rough IP-based location estimates. It also requests browser GPS location, which is sent when the visitor grants browser permission. Location details are printed to the terminal and saved in `logs.txt`; anyone with access to the terminal, container logs, or mounted log file can read them. The temporary tunnel makes the server reachable from the public internet. Share its URL only with people who understand and agree to this collection. This project has no authentication.
