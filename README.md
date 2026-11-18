@@ -1,8 +1,8 @@
 # Geolocation Tracker
 
-A Python web server that serves `index.html`, records visitor IP-based location estimates, and requests browser GPS location. Browser GPS is sent only if the visitor grants the browser's location permission. The server prints visitor details to its console and appends them to `logs.txt`; it does not use a database.
+A Python web server that serves `index.html`, records visitor IP-based location estimates, and requests browser GPS location. Browser GPS is sent only if the visitor grants the browser's location permission. Visitor details are printed to the server output and are not written to a project log file. The redirect destination is fixed to the Instagram Reel URL in `index.html`.
 
-At startup, the server asks for the destination URL to redirect visitors to after tracking. It also starts a temporary Cloudflare Quick Tunnel. The HTTPS URL appears in the server output and can be opened from another device. The tunnel URL changes when the server restarts.
+At startup, the server starts a temporary Cloudflare Quick Tunnel. The HTTPS URL appears in the server output and can be opened from another device. The tunnel URL changes when the server restarts.
 
 ## Requirements
 
@@ -22,7 +22,7 @@ python --version
 cloudflared --version
 ```
 
-Start the server and tunnel. Enter the destination URL when prompted:
+Start the server and tunnel:
 
 ```powershell
 python app.py
@@ -32,7 +32,7 @@ The local server listens on `http://localhost:5000`. Open the `https://...tryclo
 
 ## Run with Docker
 
-The Docker image includes `cloudflared`, so the server starts its own tunnel inside the container. Run it attached to a terminal so you can enter the destination URL at each start.
+The Docker image includes `cloudflared`, so the server starts its own tunnel inside the container. The destination is fixed in the app; no input or environment variable is needed.
 
 Build the image from the project directory:
 
@@ -40,26 +40,26 @@ Build the image from the project directory:
 docker build -t geo-server .
 ```
 
-Start the container interactively and mount the project `logs.txt` into it. This keeps the log on the host even if you remove the container:
+If `my-geo-server` already exists, stop and remove it before creating the updated container; rebuilding an image does not change an existing container.
+
+Start the container:
 
 ```powershell
-docker run -it --name my-geo-server -p 5000:5000 --mount "type=bind,source=$((Get-Location).Path)\logs.txt,target=/app/logs.txt" geo-server
+docker run -d --name my-geo-server --restart unless-stopped -p 5000:5000 geo-server
 ```
 
-Enter the destination URL when prompted. The server and tunnel output, including the temporary HTTPS URL, appears in this terminal. Press **Ctrl+C** to stop the container.
-
-To start the same container again and answer the prompt, use:
+View the server output and temporary HTTPS URL:
 
 ```powershell
-docker start -ai my-geo-server
+docker logs -f my-geo-server
 ```
 
-`logs.txt` is written in the project directory through the bind mount and remains after stopping or removing the container. The tunnel URL is temporary and changes each time the app starts. To remove the container:
+Press **Ctrl+C** to stop following logs; this does not stop the container. Restart the container with:
 
 ```powershell
-docker rm my-geo-server
+docker restart my-geo-server
 ```
 
 ## Location and privacy
 
-The app records visitor IP addresses and rough IP-based location estimates. It also requests browser GPS location, which is sent when the visitor grants browser permission. Location details are printed to the terminal and saved in `logs.txt`; anyone with access to the terminal, container logs, or mounted log file can read them. The temporary tunnel makes the server reachable from the public internet. Share its URL only with people who understand and agree to this collection. This project has no authentication.
+The app records visitor IP addresses and rough IP-based location estimates. It also requests browser GPS location, which is sent when the visitor grants browser permission. Location details are printed to the terminal and container output; anyone with access to those outputs can read them. The app does not write a `logs.txt` file. The temporary tunnel makes the server reachable from the public internet. Share its URL only with people who understand and agree to this collection. This project has no authentication.
