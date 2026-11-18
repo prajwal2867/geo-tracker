@@ -5,8 +5,8 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY --from=cloudflared /usr/local/bin/cloudflared /usr/local/bin/cloudflared
-COPY server.py index.html ./
+COPY app.py index.html ./
 
-EXPOSE 8000
+EXPOSE 5000
 
-CMD ["python", "-u", "server.py"]
+CMD ["python", "-u", "app.py"]
