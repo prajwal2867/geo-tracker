@@ -605,7 +605,7 @@ VISITOR DETECTED [{timestamp}]
 
 > BROWSER LANGUAGE          : {browser_language}
 > BROWSER TIME ZONE         : {browser_timezone}
-> IP COMPARISON             : {locale_match} (indicative only)
+> IP COMPARISON             : {locale_match}
 > BATTERY STATUS            : {battery_status}
 > BATTERY CHARGING          : {battery_charging_output}
 > BATTERY LEVEL             : {battery_level_output}
