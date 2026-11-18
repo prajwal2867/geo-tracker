@@ -1,5 +1,5 @@
 # Local run: starts the Python server and temporary HTTPS tunnel.
-python server.py
+python app.py
 
 # Build the Docker image (includes cloudflared).
 docker build -t geo-server .
