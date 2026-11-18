@@ -5,14 +5,12 @@ from http.cookies import SimpleCookie
 from urllib.request import Request, urlopen
 from urllib.parse import quote, urlsplit
 from pathlib import Path
-import html
 import ipaddress
 import json
 import shutil
 import subprocess
 import threading
 import secrets
-import os
 import math
 
 
@@ -24,7 +22,6 @@ HOST = "0.0.0.0"
 PORT = 5000
 
 BASE_DIR = Path(__file__).resolve().parent
-LOG_FILE = BASE_DIR / "logs.txt"
 
 SESSION_TIMEOUT = 1800
 MAX_REQUEST_SIZE = 16384
@@ -109,70 +106,11 @@ def get_ip_location(ip_address):
         return None
 
 
-def validate_destination_url(value):
-
-    if not value or any(character.isspace() for character in value):
-        raise ValueError("Please enter a valid URL.")
-
-    if value.lower().startswith(("http://", "https://")):
-        destination_url = value
-    elif "://" in value:
-        raise ValueError("Only HTTP and HTTPS URLs are supported.")
-    else:
-        destination_url = f"https://{value}"
-
-    try:
-        parsed_url = urlsplit(destination_url)
-        hostname = parsed_url.hostname
-        parsed_url.port
-    except ValueError as error:
-        raise ValueError("Please enter a valid URL.") from error
-
-    if (
-        not hostname
-        or parsed_url.username is not None
-        or parsed_url.password is not None
-    ):
-        raise ValueError("Please enter a valid URL.")
-
-    normalized_hostname = hostname.rstrip(".")
-    if "." not in normalized_hostname:
-        raise ValueError(
-            "Missing domain. Please enter a full URL (example.com)."
-        )
-
-    try:
-        ascii_hostname = normalized_hostname.encode("idna").decode("ascii")
-    except UnicodeError as error:
-        raise ValueError("Please enter a valid domain.") from error
-
-    labels = ascii_hostname.split(".")
-    valid_label = all(
-        label
-        and len(label) <= 63
-        and label[0].isalnum()
-        and label[-1].isalnum()
-        and all(character.isalnum() or character == "-" for character in label)
-        for label in labels
-    )
-    valid_tld = (
-        len(labels[-1]) >= 2
-        and (labels[-1].isalpha() or labels[-1].startswith("xn--"))
-    )
-
-    if len(ascii_hostname) > 253 or not valid_label or not valid_tld:
-        raise ValueError("Please enter a valid domain.")
-
-    return destination_url
-
-
 # ==================================================
 # HTTP REQUEST HANDLER
 # ==================================================
 
 class VisitorHandler(SimpleHTTPRequestHandler):
-
-    destination_url = ""
 
     def log_message(self, format, *args):
         # Suppress default HTTP access logs
@@ -259,11 +197,7 @@ class VisitorHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, "index.html not found")
                 return
 
-            content = index_file.read_text(encoding="utf-8")
-            content = content.replace(
-                "__DESTINATION_URL__",
-                html.escape(self.destination_url, quote=True)
-            ).encode("utf-8")
+            content = index_file.read_bytes()
 
             self.send_response(200)
 
@@ -528,15 +462,6 @@ VISITOR DETECTED [{timestamp}]
             # Display in terminal
             print(log_entry, flush=True)
 
-            # Save to logs.txt
-            with open(
-                LOG_FILE,
-                "a",
-                encoding="utf-8"
-            ) as file:
-
-                file.write(log_entry + "\n\n")
-
             # Send successful response
             self.send_json({
                 "status": "ok"
@@ -628,21 +553,6 @@ class VisitorServer(ThreadingHTTPServer):
 
 
 if __name__ == "__main__":
-
-    while True:
-        try:
-            destination_url = validate_destination_url(
-                input(
-                    "Type the URL of the destination site "
-                    "(including it's domain): "
-                ).strip()
-            )
-            print("> URL added!\n")
-            break
-        except ValueError as error:
-            print(f"> {error}\n")
-
-    VisitorHandler.destination_url = destination_url
 
     print(
         f"Server running locally at http://127.0.0.1:{PORT}"
