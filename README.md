@@ -1,118 +1,60 @@
 # Geo Tracker
 
-A small Python-based web project that demonstrates how a website can collect and display visitor network and location information.
+Geo Tracker is a small Python app that shows a web page and collects some location and browser details. It asks for GPS permission, estimates location from the visitor's IP address, and prints the results in the server terminal. The page then redirects to an Instagram Reel.
 
-When someone opens the page, the app:
-- Detects the visitor's public IP address and looks up an approximate location.
-- Requests browser GPS access. If the visitor grants permission, it receives the device's GPS coordinates; otherwise, it records the permission or availability status.
-- Collects browser language, time zone, and battery information when supported.
-- Prints the collected details in the server terminal.
-- Redirects the browser to a configured Instagram Reel after the tracking attempt.
+IP location is only an estimate. GPS details are collected only if the visitor allows it.
 
-The project uses a temporary **Cloudflare Tunnel** to make the local server accessible through an HTTPS link.
+## Screenshots
 
-## Preview
+### App running in Docker
 
-<!-- Replace the placeholders below with your screenshots. -->
+![Docker container running with a Cloudflare Tunnel link](image/README/1795058455167.png)
 
-### Website
-![Website screenshot](images/website-preview.png)
+### Example visitor results (redact for privacy)
 
-### Terminal output
-![Terminal output screenshot](images/terminal-output.png)
+![1795058980853](image/README/1795058980853.png)
 
-### Location result
-![Location result screenshot](images/location-result.png)
+## Run on your computer
 
-## Tech Stack
+You need:
 
-- **Python** — HTTP server and request handling
-- **HTML & JavaScript** — browser-side location and device information
-- **Cloudflare Tunnel (\`cloudflared\`)** — temporary public HTTPS access
-- **IP-API** — approximate IP-based geolocation
-- **Docker** — optional container-based setup
+- Python 3.12 +
+- Git
+- `cloudflared` if you want a public HTTPS link
+- Docker (optional to run a consistent environment)
 
-## Run Locally
+No extra Python packages are needed.
 
-### Prerequisites
-
-Install the following:
-
-1. **Python 3.12 or newer** — [Download Python](https://www.python.org/downloads/)
-2. **Cloudflared** — [Installation guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
-3. **Git** — to clone the repository
-
-No additional Python packages are required. The server uses Python's standard library.
-
-### 1. Clone the repository
-
-\`\`\`bash
+```powershell
 git clone https://github.com/prajwal2867/geo-tracker.git
 cd geo-tracker
-\`\`\`
-
-### 2. Check the installations
-
-\`\`\`bash
-python --version
-cloudflared --version
-\`\`\`
-
-### 3. Start the application
-
-\`\`\`bash
 python app.py
-\`\`\`
+```
 
-The application starts the local server on:
+Open [http://localhost:5000](http://localhost:5000). If `cloudflared` is installed, the terminal also shows a public link. Press **Ctrl+C** to stop the app.
 
-\`\`\`
-http://localhost:5000
-\`\`\`
+## Run with Docker
 
-It also starts a Cloudflare Quick Tunnel. Look for the generated \`https://...trycloudflare.com\` URL in the terminal.
+Docker runs the app and tunnel together in the background. You need Docker Desktop running.
 
-Open that HTTPS URL in a browser to access the page from another device. Browser GPS access generally requires HTTPS (or localhost).
+In the project folder, run:
 
-Press **Ctrl + C** in the terminal to stop the server and tunnel.
-
-## Optional: Run with Docker
-
-If you have Docker installed, you can run the project without installing Python or Cloudflared separately on your computer. The Docker image includes both.
-
-Build the image:
-
-\`\`\`bash
+```powershell
 docker build -t geo-tracker .
-\`\`\`
-
-Start the container:
-
-\`\`\`bash
 docker run -d --name geo-tracker --restart unless-stopped -p 5000:5000 geo-tracker
-\`\`\`
+```
 
-View the server output and generated tunnel URL:
+To see the public link and visitor results:
 
-\`\`\`bash
+```powershell
 docker logs -f geo-tracker
-\`\`\`
+```
 
-Stop the container:
+Press **Ctrl+C** to stop viewing the logs. The app keeps running. To stop and remove the container:
 
-\`\`\`bash
+```powershell
 docker stop geo-tracker
-\`\`\`
+docker rm geo-tracker
+```
 
-## Important Notes
-
-- **IP-based location is approximate.** It may identify a city or region, not an exact physical address.
-- **GPS requires browser permission.** Coordinates are received only when the visitor grants access. If permission is denied or GPS is unavailable, the app reports that status instead.
-- **Device information varies by browser.** Battery information, for example, may not be available on every device or browser.
-- **Output is terminal-only.** Visitor details are printed in the server terminal (or Docker logs); the app does not save them to a log file.
-- **The tunnel is public.** Anyone with the generated URL may be able to access the page. The project does not include authentication.
-- **Use responsibly.** Only run this project with people who know what information is being requested and have agreed to participate.
-
----
-
-Made as a hands-on experiment with Python, browser APIs, and Cloudflare Tunnel.
+Only use the public tunnel with visitors who know what information the app requests and agree to share it.
